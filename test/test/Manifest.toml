@@ -1,0 +1,12 @@
+# This file is machine-generated - editing it directly is not advised
+
+[[CSTParser]]
+deps = ["Tokenize"]
+git-tree-sha1 = "d099404ed1319a69fca328814e9a7ad46b32ab67"
+uuid = "00ebfdb7-1f24-5e51-bd34-a7502290713f"
+version = "3.1.0"
+
+[[Tokenize]]
+git-tree-sha1 = "15318136d8b7a91a0e49916ec931cc51d5456ab2"
+uuid = "0796e94c-ce3b-5d07-9a54-7f471281c624"
+version = "0.5.16"

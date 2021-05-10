@@ -1,0 +1,8 @@
+name = "TypedJulia"
+uuid = "78d8acf4-da00-40c9-bc75-b26e74f084e2"
+authors = ["Ben Chung <ckfinite@gmail.com>"]
+version = "0.1.0"
+
+[deps]
+CSTParser = "00ebfdb7-1f24-5e51-bd34-a7502290713f"
+MacroTools = "1914dd2f-81c6-5fcd-8719-6d5c9610ff09"
