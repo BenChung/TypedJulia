@@ -45,3 +45,12 @@ function MacroTools.match_inner(pat::MacroTools.OrBind, ex::EXPR, env)
 	env′ = MacroTools.trymatch(pat.pat1, ex)
 	env′ == nothing ? MacroTools.match(pat.pat2, ex, env) : merge!(env, env′)
 end
+
+function MacroTools.normalise(ex::EXPR)
+  ex = unblock(ex)
+  isexpr(ex, :quotenode) && (ex = Expr(:quote, ex.args[1]))
+  isexpr(ex, :inert) && (ex = Expr(:quote, ex.args[1]))
+  isa(ex, QuoteNode) && (ex = Expr(:quote, ex.value))
+  isexpr(ex, :kw) && (ex = Expr(:(=), ex.args...))
+  return ex
+end

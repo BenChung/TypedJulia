@@ -26,8 +26,17 @@ function Base.getindex(e::Env, s::Symbol)
 	return e.typing[Binding(s, nothing)]
 end
 
-function Base.haskey(e::Env, s::Symbol)
-	return haskey(e.typing, Binding(s, nothing))
+function Base.haskey(e::Env, b::Binding)
+	return haskey(e.typing, b)
+end
+Base.haskey(e::Env, s::Symbol) = haskey(e, Binding(s, nothing))
+
+function updatefrom(tgt::Env, from::Env)
+	for (binding, typ) in from 
+		if haskey(tgt, binding)
+			tgt[binding] = typ
+		end
+	end
 end
 
 struct Env_IterState{T}

@@ -1,12 +1,20 @@
-function typecheck_getfield(expr, ctx::Env)
+function typecheck_getfield(rec, var, ctx::Env)
+	recty = typecheck_expr(rec, ctx)
+	if var isa Symbol
+		
+	end
+
 end
 
 function typecheck_cond_clause(cond, body, ctx::Env)
-	condty = typecheck_expr(cond, ctx)
+	bodyctx = Env(ctx)
+	condty = typecheck_expr(cond, bodyctx)
 	if !isstatictype(condty, Bool)
 		throw("Non-boolean of type $condty used as condition")
 	end
-	return typecheck_expr(body, ctx)
+	res = typecheck_expr(body, bodyctx)
+	updatefrom(ctx, bodyctx)
+	return res
 end
 
 function typecheck_if(expr, ctx::Env)
@@ -44,7 +52,7 @@ function typecheck_expr(expr, ctx::Env)
 	elseif CSTParser.isoperator(expr)
 		return lookup_symbol(Symbol(expr.val), ctx)
 	elseif CSTParser.isstring(expr)
-		return BasicType{String}();
+		return BasicType{String}()
 	elseif CSTParser.isfloat(expr)
 		return BasicType{Float64}()
 	elseif CSTParser.isinteger(expr)
@@ -56,8 +64,7 @@ function typecheck_expr(expr, ctx::Env)
 	elseif expr.head == :vect
 		return BasicType{Vector{canonize(typemeet(typecheck_expr.(expr.args, (ctx, ))))}}()
 	elseif @capture(expr, rec_.var_)
-		recty = typecheck_expr(rec, ctx)
-		
+		return typecheck_getfield(rec, var, ctx)
 	elseif CSTParser.isassignment(expr)
 		lhs_match = @capture(expr.args[1], (vars__,) | var_)
 		if !lhs_match
@@ -65,10 +72,11 @@ function typecheck_expr(expr, ctx::Env)
 		end
 		value = typecheck_expr(expr.args[2], ctx)
 		if var == nothing 
-			return bind(ctx, vars, destruct_tuple(value))
+			bind(ctx, vars, destruct_tuple(value))
 		else
-			return bind(ctx, [var], [value])
+			bind(ctx, [var], [value])
 		end
+		return value
 	elseif CSTParser.istuple(expr)
 		return BasicType{Tuple{canonize.(typecheck_expr.(expr.args, (ctx, )))...}}()
 	elseif expr.head == :if
@@ -82,12 +90,14 @@ function typecheck_expr(expr, ctx::Env)
 			throw("wtf how did we get here")
 		end
 		rhs = typecheck_expr(coll, ctx)
+		iterctx = Env(ctx)
 		if vars == nothing
-			bind(ctx, [var], [static_eltype(rhs)]) # the scoping on this is wrong
+			bind(iterctx, [var], [static_eltype(rhs)]) # the scoping on this is wrong
 		else
-			bind(ctx, vars, destruct_tuple(static_eltype(rhs)))
+			bind(iterctx, vars, destruct_tuple(static_eltype(rhs)))
 		end
-		typecheck_expr(body, ctx)
+		typecheck_expr(body, iterctx)
+		updatefrom(ctx, iterctx)
 		return BasicType{Nothing}()
 	elseif expr.head == :return
 		retty = typecheck_expr(expr.args[1], ctx)
