@@ -15,16 +15,16 @@ function splitwhere(expr)
 	end
 end
 
-function tyenv_eval(expr, env::Env)
+function tyenv_eval(expr, env::Env, scope_expr)
 	predefs = :(begin end)
 	for (name, typ) in env
-		if !(typ isa TypeVar)
+		if !isstatictype(typ, TypeVar)
 			continue
 		end
-		push!(predefs.args, :($(name.name) = $typ))
+		push!(predefs.args, :($(name.name) = $(typ.type)))
 	end
 	push!(predefs.args, expr)
-	return eval(predefs)
+	return Base.eval(eval(scope_expr), predefs)
 end
 
 function toexpr(expr::Symbol)

@@ -1,9 +1,17 @@
 function typecheck_getfield(rec, var, ctx::Env)
 	recty = typecheck_expr(rec, ctx)
-	if var isa Symbol
-		
+	if var isa Symbol && recty isa BasicType
+		return fieldtype(canonize(recty), var)
 	end
+	return BasicType(Any)
+end
 
+function ensure_typed_meta(expr::EXPR)
+	if isnothing(expr.meta)
+		expr.meta = Meta()
+	elseif expr.meta isa StaticLint.Meta
+		expr.meta = Meta(expr.meta)
+	end
 end
 
 function typecheck_cond_clause(cond, body, ctx::Env)
@@ -19,11 +27,11 @@ end
 
 function typecheck_if(expr, ctx::Env)
 	restys = StaticType[]
-	while expr.head == :if || expr.head == :elseif 
+	while expr.head == :if || expr.head == :elseif
 		push!(restys, typecheck_cond_clause(expr.args[1], expr.args[2], ctx)) # todo: something more clever with ctx
 		if length(expr.args) > 2
 			expr = expr.args[3]
-		else 
+		else
 			break
 		end
 	end
@@ -37,32 +45,53 @@ function bind(ctx, vars, vals)
 	#todo: deal with non-variable LHSes (e.g. x.field, x[property], etc)
 	for (var, val) in zip(vars, vals)
 		ctx[var] = val
+		ensure_typed_meta(var)
+		var.meta.type = val
 	end
 end
 
 function typecheck_expr(expr, ctx::Env)
+	try
+		ensure_typed_meta(expr)
+		res = typecheck_expr_(expr, ctx)
+		expr.meta.type = res
+		return res
+	catch e
+		if !(e isa HandledError)
+			@error "had typecheck error $e with stacktrace $(stacktrace(catch_backtrace()))"
+			expr.meta.error = TypeError(sprint(showerror, e))
+			#@info "with environment $ctx"
+			#@error "In expression $(Expr(expr)) had error"
+			rethrow(HandledError(e))
+		else
+			rethrow(e)
+		end
+	end
+end
+
+function typecheck_expr_(expr, ctx::Env)
 	if CSTParser.isbeginorblock(expr)
-		last_type = BasicType{Nothing}()
+		last_type = BasicType(Nothing)
 		for iexp in expr.args
 			last_type = typecheck_expr(iexp, ctx)
 		end
 		return last_type
 	elseif CSTParser.isidentifier(expr)
-		return lookup_symbol(Symbol(expr.val), ctx)
+		return lookup_symbol(expr, ctx)
 	elseif CSTParser.isoperator(expr)
-		return lookup_symbol(Symbol(expr.val), ctx)
+		return lookup_symbol(expr, ctx)
 	elseif CSTParser.isstring(expr)
-		return BasicType{String}()
+		return BasicType(String)
 	elseif CSTParser.isfloat(expr)
-		return BasicType{Float64}()
+		return BasicType(Float64)
 	elseif CSTParser.isinteger(expr)
-		return BasicType{Int}()
+		return BasicType(Int)
 	elseif CSTParser.ischar(expr)
-		return BasicType{Char}()
+		return BasicType(Char)
 	elseif expr.head == :TRUE || expr.head == :FALSE
-		return BasicType{Bool}()
+		return BasicType(Bool)
 	elseif expr.head == :vect
-		return BasicType{Vector{canonize(typemeet(typecheck_expr.(expr.args, (ctx, ))))}}()
+		return BasicType(Vector{canonize(typemeet(typecheck_expr.(expr.args, (ctx, ))))})
 	elseif @capture(expr, rec_.var_)
 		return typecheck_getfield(rec, var, ctx)
 	elseif CSTParser.isassignment(expr)
@@ -71,20 +100,20 @@ function typecheck_expr(expr, ctx::Env)
 			throw("unhandled lhs $(expr)")
 		end
 		value = typecheck_expr(expr.args[2], ctx)
-		if var == nothing 
+		if var == nothing
 			bind(ctx, vars, destruct_tuple(value))
 		else
 			bind(ctx, [var], [value])
 		end
 		return value
 	elseif CSTParser.istuple(expr)
-		return BasicType{Tuple{canonize.(typecheck_expr.(expr.args, (ctx, )))...}}()
+		return BasicType(Tuple{canonize.(typecheck_expr.(expr.args, (ctx, )))...})
 	elseif expr.head == :if
 		return typecheck_if(expr, ctx)
 	elseif expr.head == :while
 		typecheck_cond_clause(expr.args[1], expr.args[2], ctx)
-		return BasicType{Nothing}()
-	elseif @capture(expr, for ivars_ in coll_ body_ end) 
+		return BasicType(Nothing)
+	elseif @capture(expr, for ivars_ in coll_ body_ end)
 		lhs_match = @capture(ivars, (vars__,) | var_)
 		if !lhs_match
 			throw("wtf how did we get here")
@@ -98,7 +127,7 @@ function typecheck_expr(expr, ctx::Env)
 		end
 		typecheck_expr(body, iterctx)
 		updatefrom(ctx, iterctx)
-		return BasicType{Nothing}()
+		return BasicType(Nothing)
 	elseif expr.head == :return
 		retty = typecheck_expr(expr.args[1], ctx)
 		push!(ctx.returns, retty)
@@ -107,7 +136,13 @@ function typecheck_expr(expr, ctx::Env)
 		rec_typ = typecheck_expr(first(expr.args), ctx)
 		arg_typs = typecheck_expr.(expr.args[2:end], (ctx,))
 		mask = dyn_mask([rec_typ, arg_typs...])
-		return dispatch_typed_direct(canonize(rec_typ), canonize.(arg_typs), mask)
+		try
+			return dispatch_typed_direct(canonize(rec_typ), canonize.(arg_typs), mask)
+		catch e
+			expr.meta.error = TypeError(string(e))
+			@info "set error on $(Expr(expr))"
+			throw(HandledError("dispatch failed"))
+		end
 	end
-	throw("Unhandled expr form $expr")
+	throw("Unhandled expr form $(expr.head) is call?")
 end
