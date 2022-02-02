@@ -15,6 +15,9 @@ struct HandledError <: Exception
 end
 
 StaticLint.iserror(::TypeError) = true
+function Base.showerror(io::IO, err::TypeError)
+    println(io, err.message)
+end
 
 mutable struct Meta
     binding::Union{Nothing,StaticLint.Binding}

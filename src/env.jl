@@ -13,7 +13,7 @@ mutable struct Env
 	Env(e::Env) = new(e.typing, Any[])
 end
 
-Base.setindex!(e::Env, v::Any, b::EXPR) = setindex!(e, v, Binding(Expr(b), b))
+Base.setindex!(e::Env, v::Any, b::EXPR) = setindex!(e, v, Binding(CSTParser.to_codeobject(b), b))
 function Base.setindex!(e::Env, v::Any, b::Binding)
 	if haskey(e.typing, b)
 		e.typing = Base.ImmutableDict(e.typing, b=>typemeet(e.typing[b], v))
@@ -38,6 +38,9 @@ function updatefrom(tgt::Env, from::Env)
 		end
 	end
 	# todo: more logic here
+	if length(from.returns) > length(tgt.returns)
+		resize!(tgt.returns, length(from.returns))
+	end
 	copyto!(tgt.returns, from.returns)
 end
 

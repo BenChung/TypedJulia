@@ -10,6 +10,10 @@ struct SpecialFunction <: StaticType
 	fn::Function
 end
 
+function Base.show(io::IO, t::BasicType)
+	println(io, t.type)
+end
+
 canonize(b::BasicType) = b.type
 canonize(::DynamicType) = Any
 canonize(::ModuleType) = Module

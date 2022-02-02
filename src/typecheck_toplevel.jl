@@ -12,6 +12,7 @@ function build_mdef_env(definfo, base_env::Env, scope)
 		env[arg[2]] = BasicType(tv)
 	end
 	for arg in MacroTools.splitarg.(definfo[:args])
+		if isnothing(arg[1]) continue end
 		env[arg[1]] = BasicType(tyenv_eval(toexpr(arg[2]), env, scope))
 	end
 	for arg in MacroTools.splitarg.(definfo[:kwargs])
@@ -23,6 +24,7 @@ end
 function typecheck_mdef(expr::CSTParser.EXPR, env::Env)
 	computed_scope = resolve_scope(expr, false)
 	definfo = MacroTools.splitdef(expr)
+	@debug "typechecking definition in scope $computed_scope"
 	menv = build_mdef_env(definfo, env, computed_scope)
 	return typecheck_expr(definfo[:body], menv)
 end
@@ -37,7 +39,8 @@ function typecheck_toplevel(expr::CSTParser.EXPR, env=Env())
 				if !(e isa HandledError)
 					@error sprint(showerror, e)
 					@error "had typecheck error $e with stacktrace $(stacktrace(catch_backtrace()))"
-					body_expr.meta.error = TypeError(sprint(showerror, e))
+					error_text = sprint(showerror, e, catch_backtrace())
+					body_expr.meta.error = TypeError(error_text)
 				end
 			end
 		end

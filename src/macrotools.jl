@@ -38,9 +38,18 @@ function MacroTools.match_inner(pat::Expr, ex::EXPR, env)
   return env
 end
 
-function MacroTools.match_inner(pat, ex::EXPR, env)
-  return MacroTools.match_inner(pat, Expr(ex), env)
+function make_expr(cst::CSTParser.EXPR)
+	if cst.head == :OPERATOR
+		return Expr(Symbol(cst.val))
+	else
+		throw("Expected identifier at $cst")
+	end
 end
+
+function MacroTools.match_inner(pat, ex::EXPR, env)
+  return MacroTools.match_inner(pat, CSTParser.to_codeobject(ex), env)
+end
+
 function MacroTools.match_inner(pat::MacroTools.OrBind, ex::EXPR, env)
 	env′ = MacroTools.trymatch(pat.pat1, ex)
 	env′ == nothing ? MacroTools.match(pat.pat2, ex, env) : merge!(env, env′)

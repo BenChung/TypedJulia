@@ -24,12 +24,19 @@ function tyenv_eval(expr, env::Env, scope_expr)
 		push!(predefs.args, :($(name.name) = $(typ.type)))
 	end
 	push!(predefs.args, expr)
-	return Base.eval(eval(scope_expr), predefs)
+	try
+		return Base.eval(eval(scope_expr), predefs)
+	catch e
+		if e isa UndefVarError
+			throw(TypeError("Missing variable $(e.var); scope expression: $(scope_expr)"))
+		end
+		rethrow(e)
+	end
 end
 
 function toexpr(expr::Symbol)
 	return expr
 end
 function toexpr(expr::CSTParser.EXPR)
-	return Expr(expr)
+	return CSTParser.to_codeobject(expr)
 end
